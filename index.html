@@ -416,11 +416,30 @@ function calcScore(cards) {
 }
 
 // ===== PeerJS Networking =====
+// PeerJS 配置
+// 默认 0.peerjs.com 信令服务器在国内可能无法直连，显式指定 HTTPS 443 端口
+// 如果仍然超时，可自建 peerjs-server 或使用代理
+const PEER_CONFIG = {
+    debug: 2,
+    host: '0.peerjs.com',
+    port: 443,
+    secure: true,
+    config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+        ]
+    }
+};
+
 function initPeer(customId) {
     return new Promise((resolve, reject) => {
         if (typeof Peer === 'undefined') { reject('PeerJS未加载'); return; }
         try {
-            peer = customId ? new Peer(customId) : new Peer();
+            peer = customId ? new Peer(customId, PEER_CONFIG) : new Peer(undefined, PEER_CONFIG);
         } catch (e) { reject(e); return; }
         peer.on('open', id => { myPeerId = id; resolve(id); });
         peer.on('error', err => {
@@ -495,10 +514,10 @@ function joinRoom() {
         hostConn = peer.connect('game21-' + code, { reliable: true });
 
         const timeout = setTimeout(() => {
-            showToast('连接超时，请重试');
+            showToast('连接超时，请重试（可能需要科学上网）');
             btn.disabled = false;
             btn.textContent = '加入房间';
-        }, 8000);
+        }, 15000);
 
         hostConn.on('open', () => {
             clearTimeout(timeout);
