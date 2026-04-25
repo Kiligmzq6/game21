@@ -449,6 +449,7 @@ function createRoom() {
 
         peer.on('connection', conn => {
             conn.on('open', () => {
+                connections.set(conn.peer, conn);
                 conn.on('data', data => handleHostMessage(conn.peer, data));
             });
             conn.on('close', () => handlePlayerDisconnect(conn.peer));
@@ -471,12 +472,31 @@ function joinRoom() {
     roomCode = code;
 
     initPeer().then(() => {
-        hostConn = peer.connect('game21-' + code);
+        peer.on('error', err => {
+            if (err.type === 'peer-unavailable') {
+                showToast('房间不存在，请检查房间码');
+            }
+        });
+
+        hostConn = peer.connect('game21-' + code, { reliable: true });
+
+        const timeout = setTimeout(() => {
+            showToast('连接超时，请重试');
+        }, 8000);
+
         hostConn.on('open', () => {
+            clearTimeout(timeout);
             hostConn.send({ type: 'JOIN', name: myName });
             hostConn.on('data', data => handleClientMessage(data));
         });
-        hostConn.on('error', () => showToast('无法连接到房间'));
+        hostConn.on('close', () => {
+            clearTimeout(timeout);
+            showToast('与房主断开连接');
+        });
+        hostConn.on('error', () => {
+            clearTimeout(timeout);
+            showToast('无法连接到房间');
+        });
     }).catch(() => showToast('连接服务器失败'));
 }
 
@@ -493,10 +513,6 @@ function handleHostMessage(peerId, data) {
                 const c = connections.get(peerId);
                 if (c) c.send({ type: 'ERROR', message: '游戏已开始' });
                 return;
-            }
-            const existing = peer.connections[peerId];
-            if (existing && existing.length > 0) {
-                connections.set(peerId, existing[existing.length - 1]);
             }
             gameState.players.push({
                 id: peerId, name: data.name, cards: [], score: 0,
