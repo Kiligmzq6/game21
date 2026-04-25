@@ -234,7 +234,7 @@
     <!-- Welcome Screen -->
     <div id="screen-welcome" class="screen active">
         <div class="welcome-header">
-            <h1>🃏 宿舍21点</h1>
+            <h1>🃏 21点</h1>
             <p>多人联机 · 无需下载 · 分享即玩</p>
         </div>
         <div class="welcome-box">
@@ -1014,7 +1014,7 @@ function copyRoomLink() {
 
 function shareRoom() {
     const url = location.origin + location.pathname + '?room=' + roomCode;
-    navigator.share({ title: '宿舍21点', text: '来玩21点！房间码: ' + roomCode, url }).catch(() => {});
+    navigator.share({ title: '21点', text: '来玩21点！房间码: ' + roomCode, url }).catch(() => {});
 }
 
 // ===== Init =====
