@@ -418,7 +418,10 @@ function calcScore(cards) {
 // ===== PeerJS Networking =====
 function initPeer(customId) {
     return new Promise((resolve, reject) => {
-        peer = customId ? new Peer(customId) : new Peer();
+        if (typeof Peer === 'undefined') { reject('PeerJS未加载'); return; }
+        try {
+            peer = customId ? new Peer(customId) : new Peer();
+        } catch (e) { reject(e); return; }
         peer.on('open', id => { myPeerId = id; resolve(id); });
         peer.on('error', err => {
             if (err.type === 'unavailable-id') {
@@ -438,6 +441,8 @@ function createRoom() {
     isHost = true;
     gameState.maxPlayers = count;
     roomCode = generateRoomCode();
+
+    if (peer) { peer.destroy(); peer = null; }
 
     initPeer('game21-' + roomCode).then(() => {
         gameState.players = [{
@@ -467,14 +472,23 @@ function createRoom() {
 function joinRoom() {
     const name = $('join-name').value.trim() || '玩家';
     const code = $('join-code').value.trim().toUpperCase();
-    if (!code || code.length !== 4) return showToast('请输入4位房间码');
+    if (!code || code.length !== 4) { showToast('请输入4位房间码'); return; }
     myName = name;
     roomCode = code;
+    isHost = false;
+
+    const btn = document.querySelector('#screen-welcome .btn-outline');
+    btn.disabled = true;
+    btn.textContent = '连接中...';
+
+    if (peer) { peer.destroy(); peer = null; }
 
     initPeer().then(() => {
         peer.on('error', err => {
             if (err.type === 'peer-unavailable') {
                 showToast('房间不存在，请检查房间码');
+                btn.disabled = false;
+                btn.textContent = '加入房间';
             }
         });
 
@@ -482,6 +496,8 @@ function joinRoom() {
 
         const timeout = setTimeout(() => {
             showToast('连接超时，请重试');
+            btn.disabled = false;
+            btn.textContent = '加入房间';
         }, 8000);
 
         hostConn.on('open', () => {
@@ -493,11 +509,19 @@ function joinRoom() {
             clearTimeout(timeout);
             showToast('与房主断开连接');
         });
-        hostConn.on('error', () => {
+        hostConn.on('error', err => {
             clearTimeout(timeout);
+            console.error('Connection error:', err);
             showToast('无法连接到房间');
+            btn.disabled = false;
+            btn.textContent = '加入房间';
         });
-    }).catch(() => showToast('连接服务器失败'));
+    }).catch(err => {
+        console.error('initPeer failed:', err);
+        showToast('连接服务器失败');
+        btn.disabled = false;
+        btn.textContent = '加入房间';
+    });
 }
 
 // ===== Host Message Handling =====
@@ -1046,3 +1070,4 @@ function shareRoom() {
 })();
 </script>
 </body>
+</html>
