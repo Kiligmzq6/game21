@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>宿舍21点</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #1a5c2a; color: #fff; min-height: 100vh; overflow-x: hidden;
+        }
+        .screen { display: none; min-height: 100vh; padding: 20px; }
+        .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+        /* Welcome Screen */
+        .welcome-header { margin-top: 15vh; margin-bottom: 40px; text-align: center; }
+        .welcome-header h1 { font-size: 2em; margin-bottom: 8px; }
+        .welcome-header p { color: #a5d6a7; font-size: 0.95em; }
+        .welcome-box {
+            background: rgba(0,0,0,0.25); border-radius: 16px; padding: 24px;
+            width: 100%; max-width: 380px;
+        }
+        .welcome-box h3 { margin-bottom: 12px; font-size: 1em; color: #c8e6c9; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 0.85em; color: #a5d6a7; margin-bottom: 4px; }
+        .form-input {
+            width: 100%; padding: 10px 12px; border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 8px; background: rgba(0,0,0,0.2); color: #fff; font-size: 1em;
+            outline: none; transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: #ffd700; }
+        .form-input::placeholder { color: rgba(255,255,255,0.35); }
+        select.form-input { appearance: none; cursor: pointer; }
+        .divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0; }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px; font-size: 1em; font-weight: 600; border: none; border-radius: 10px;
+            cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center;
+            justify-content: center; gap: 6px; min-height: 48px; user-select: none;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-gold { background: #ffd700; color: #1a1a1a; }
+        .btn-gold:hover { background: #ffca00; }
+        .btn-red { background: #e53935; color: #fff; }
+        .btn-red:hover { background: #d32f2f; }
+        .btn-outline {
+            background: transparent; border: 2px solid rgba(255,255,255,0.3); color: #fff;
+        }
+        .btn-outline:hover { border-color: #ffd700; color: #ffd700; }
+        .btn-sm { padding: 8px 16px; font-size: 0.85em; min-height: 36px; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .btn-block { width: 100%; }
+
+        /* Lobby Screen */
+        .lobby-box {
+            background: rgba(0,0,0,0.25); border-radius: 16px; padding: 24px;
+            width: 100%; max-width: 420px; margin-top: 30px;
+        }
+        .room-code-display {
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            background: rgba(0,0,0,0.3); border-radius: 12px; padding: 16px; margin: 16px 0;
+        }
+        .room-code {
+            font-family: "SF Mono", "Fira Code", monospace; font-size: 2em; font-weight: 700;
+            letter-spacing: 6px; color: #ffd700;
+        }
+        .player-list { list-style: none; margin: 16px 0; }
+        .player-list li {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; background: rgba(255,255,255,0.06); border-radius: 8px;
+            margin-bottom: 6px; font-size: 0.95em;
+        }
+        .player-list .badge {
+            font-size: 0.75em; padding: 2px 8px; border-radius: 4px;
+            background: rgba(255,215,0,0.2); color: #ffd700;
+        }
+        .player-count { color: #a5d6a7; font-size: 0.85em; margin-bottom: 12px; }
+
+        /* Game Table */
+        #screen-table { padding: 12px; justify-content: flex-start; }
+        .table-header {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; max-width: 600px; padding: 8px 4px; font-size: 0.85em;
+        }
+        .table-header .chips { color: #ffd700; font-weight: 600; }
+        .table-header .room-info { color: #a5d6a7; }
+
+        .dealer-area, .my-area { width: 100%; max-width: 600px; text-align: center; }
+        .dealer-area { margin-top: 8px; }
+        .area-label {
+            font-size: 0.8em; color: #a5d6a7; margin-bottom: 6px;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .area-label .score { color: #ffd700; font-weight: 600; }
+        .area-label .status-tag {
+            font-size: 0.7em; padding: 1px 6px; border-radius: 3px;
+        }
+        .status-tag.busted { background: #e53935; }
+        .status-tag.blackjack { background: #ffd700; color: #1a1a1a; }
+        .status-tag.stood { background: rgba(255,255,255,0.2); }
+
+        .others-area {
+            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+            width: 100%; max-width: 600px; margin: 12px 0;
+        }
+        .other-player {
+            background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px 12px;
+            min-width: 120px; flex: 1; max-width: 180px; text-align: center;
+        }
+        .other-player.current-turn { box-shadow: 0 0 0 2px #ffd700; }
+        .other-player .name { font-size: 0.8em; color: #c8e6c9; margin-bottom: 4px; }
+
+        .my-area { margin-top: auto; padding-bottom: 12px; }
+
+        /* Cards */
+        .card-row {
+            display: flex; justify-content: center; flex-wrap: wrap; gap: 6px;
+            min-height: 70px; padding: 4px;
+        }
+        .card-row.small { min-height: 50px; }
+        .card {
+            width: 52px; height: 72px; border-radius: 6px; background: #fff; color: #1a1a1a;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1em; border: 1px solid rgba(0,0,0,0.15);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; flex-shrink: 0;
+        }
+        .card.small { width: 36px; height: 50px; font-size: 0.75em; border-radius: 4px; }
+        .card .suit { font-size: 0.7em; line-height: 1; }
+        .card .value { font-size: 1.1em; line-height: 1; }
+        .card.small .suit { font-size: 0.6em; }
+        .card.small .value { font-size: 0.85em; }
+        .card.red { color: #e53935; }
+        .card.facedown {
+            background: linear-gradient(135deg, #1565c0 25%, #0d47a1 25%, #0d47a1 50%,
+                #1565c0 50%, #1565c0 75%, #0d47a1 75%);
+            background-size: 8px 8px; border: 2px solid #1565c0;
+        }
+        .card.facedown .suit, .card.facedown .value { display: none; }
+
+        .card.big { width: 64px; height: 90px; font-size: 1.15em; }
+        .card.big .suit { font-size: 0.8em; }
+        .card.big .value { font-size: 1.3em; }
+
+        /* Card animations */
+        @keyframes dealIn {
+            from { opacity: 0; transform: translateY(-30px) scale(0.8); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .card.dealing { animation: dealIn 0.3s ease-out; }
+
+        /* Action buttons */
+        .action-bar {
+            display: flex; gap: 10px; justify-content: center; margin-top: 14px;
+            width: 100%; max-width: 400px;
+        }
+        .action-bar .btn { flex: 1; }
+
+        /* Bet selector */
+        .bet-bar {
+            display: flex; gap: 8px; justify-content: center; align-items: center;
+            margin-top: 12px; flex-wrap: wrap;
+        }
+        .bet-chip {
+            width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-weight: 700; font-size: 0.9em; cursor: pointer;
+            border: 3px solid rgba(255,255,255,0.3); transition: all 0.15s; user-select: none;
+        }
+        .bet-chip:hover { transform: scale(1.1); }
+        .bet-chip.selected { border-color: #ffd700; box-shadow: 0 0 12px rgba(255,215,0,0.4); transform: scale(1.1); }
+        .bet-chip.c10 { background: #2196f3; color: #fff; }
+        .bet-chip.c20 { background: #e53935; color: #fff; }
+        .bet-chip.c50 { background: #1a1a1a; color: #ffd700; }
+
+        /* Status bar */
+        .game-status {
+            text-align: center; padding: 10px; font-size: 1em; color: #ffd700;
+            font-weight: 600; width: 100%; max-width: 600px;
+        }
+
+        /* Timer */
+        .timer {
+            display: inline-block; background: rgba(0,0,0,0.3); border-radius: 20px;
+            padding: 2px 10px; font-size: 0.8em; color: #ffab00;
+        }
+        .timer.urgent { color: #e53935; animation: pulse 0.5s infinite alternate; }
+        @keyframes pulse { to { opacity: 0.5; } }
+
+        /* Results Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 100; align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: #2e7d32; border-radius: 16px; padding: 24px; width: 100%;
+            max-width: 420px; max-height: 80vh; overflow-y: auto;
+        }
+        .modal-box h2 { text-align: center; margin-bottom: 16px; font-size: 1.2em; }
+        .result-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px; background: rgba(0,0,0,0.15); border-radius: 8px;
+            margin-bottom: 6px; font-size: 0.9em;
+        }
+        .result-row .name { flex: 1; }
+        .result-row .result-score { color: #a5d6a7; margin: 0 8px; }
+        .result-row .result-chips { font-weight: 700; }
+        .result-row .result-chips.win { color: #ffd700; }
+        .result-row .result-chips.lose { color: #e53935; }
+        .result-row .result-chips.push { color: #a5d6a7; }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; border-radius: 20px;
+            font-size: 0.9em; z-index: 200; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+
+        /* Responsive */
+        @media (min-width: 640px) {
+            .card { width: 60px; height: 84px; }
+            .card.big { width: 76px; height: 106px; font-size: 1.3em; }
+            .card.small { width: 44px; height: 60px; }
+            .welcome-header { margin-top: 20vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Welcome Screen -->
+    <div id="screen-welcome" class="screen active">
+        <div class="welcome-header">
+            <h1>🃏 宿舍21点</h1>
+            <p>多人联机 · 无需下载 · 分享即玩</p>
+        </div>
+        <div class="welcome-box">
+            <h3>创建房间</h3>
+            <div class="form-group">
+                <label>你的昵称</label>
+                <input id="host-name" class="form-input" placeholder="输入昵称" maxlength="8">
+            </div>
+            <div class="form-group">
+                <label>游戏人数（含庄家）</label>
+                <select id="player-count" class="form-input">
+                    <option value="2">2人</option>
+                    <option value="3">3人</option>
+                    <option value="4" selected>4人</option>
+                    <option value="5">5人</option>
+                    <option value="6">6人</option>
+                </select>
+            </div>
+            <button class="btn btn-gold btn-block" onclick="createRoom()">创建房间</button>
+            <hr class="divider">
+            <h3>加入房间</h3>
+            <div class="form-group">
+                <label>你的昵称</label>
+                <input id="join-name" class="form-input" placeholder="输入昵称" maxlength="8">
+            </div>
+            <div class="form-group">
+                <label>房间码</label>
+                <input id="join-code" class="form-input" placeholder="输入4位房间码" maxlength="4"
+                       style="text-transform:uppercase; letter-spacing:4px; text-align:center; font-size:1.2em;">
+            </div>
+            <button class="btn btn-outline btn-block" onclick="joinRoom()">加入房间</button>
+        </div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="screen-lobby" class="screen">
+        <div class="welcome-header" style="margin-top:10vh;">
+            <h1>🃏 等待玩家</h1>
+        </div>
+        <div class="lobby-box">
+            <div style="text-align:center;">
+                <div style="color:#a5d6a7;font-size:0.85em;">房间码</div>
+                <div class="room-code-display">
+                    <span id="lobby-room-code" class="room-code"></span>
+                    <button class="btn btn-sm btn-outline" onclick="copyRoomLink()">复制链接</button>
+                    <button class="btn btn-sm btn-gold" onclick="shareRoom()" id="btn-share" style="display:none;">分享</button>
+                </div>
+            </div>
+            <p id="lobby-player-count" class="player-count"></p>
+            <ul id="lobby-player-list" class="player-list"></ul>
+            <button id="btn-start" class="btn btn-gold btn-block" onclick="startGame()" disabled>
+                等待玩家加入...
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Table -->
+    <div id="screen-table" class="screen">
+        <div class="table-header">
+            <span class="room-info">房间 <span id="table-room-code"></span></span>
+            <span class="chips">💰 <span id="my-chips">100</span></span>
+        </div>
+
+        <div class="dealer-area">
+            <div class="area-label">
+                <span id="dealer-name">庄家</span>
+                <span id="dealer-score" class="score"></span>
+                <span id="dealer-status" class="status-tag" style="display:none;"></span>
+            </div>
+            <div id="dealer-cards" class="card-row"></div>
+        </div>
+
+        <div id="others-area" class="others-area"></div>
+
+        <div id="game-status" class="game-status"></div>
+
+        <div id="bet-phase" style="display:none;text-align:center;">
+            <p style="color:#a5d6a7;font-size:0.9em;margin-bottom:8px;">选择下注额</p>
+            <div class="bet-bar">
+                <div class="bet-chip c10" onclick="selectBet(10)" data-bet="10">10</div>
+                <div class="bet-chip c20" onclick="selectBet(20)" data-bet="20">20</div>
+                <div class="bet-chip c50" onclick="selectBet(50)" data-bet="50">50</div>
+            </div>
+            <button class="btn btn-gold btn-sm" style="margin-top:12px;" onclick="confirmBet()">确认下注</button>
+        </div>
+
+        <div class="my-area">
+            <div class="area-label">
+                <span>我的手牌</span>
+                <span id="my-score" class="score"></span>
+                <span id="my-status" class="status-tag" style="display:none;"></span>
+            </div>
+            <div id="my-cards" class="card-row"></div>
+            <div id="action-bar" class="action-bar" style="display:none;">
+                <button class="btn btn-gold" onclick="doHit()">要牌</button>
+                <button class="btn btn-red" onclick="doStand()">停牌</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="modal-results" class="modal-overlay">
+        <div class="modal-box">
+            <h2>本轮结算</h2>
+            <div id="results-list"></div>
+            <button class="btn btn-gold btn-block" style="margin-top:16px;" onclick="readyNext()">继续</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+<script>
+// ===== State =====
+let peer = null;
+let isHost = false;
+let myPeerId = '';
+let myName = '';
+let roomCode = '';
+let connections = new Map(); // peerId -> conn (host only)
+let hostConn = null; // client only
+let selectedBet = 10;
+let turnTimer = null;
+
+const gameState = {
+    phase: 'lobby', // lobby, betting, playing, dealer-turn, results
+    players: [],
+    currentPlayerIndex: -1,
+    deck: [],
+    maxPlayers: 4,
+    round: 0
+};
+
+// ===== Utilities =====
+function $(id) { return document.getElementById(id); }
+
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    $(id).classList.add('active');
+}
+
+function showToast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let code = '';
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
+
+function createDeck() {
+    const suits = ['♠','♥','♣','♦'];
+    const values = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+    const deck = [];
+    for (const s of suits)
+        for (const v of values)
+            deck.push({ suit: s, value: v, isRed: s === '♥' || s === '♦' });
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+}
+
+function calcScore(cards) {
+    let score = 0, aces = 0;
+    for (const c of cards) {
+        if (c.faceDown) continue;
+        if (c.value === 'A') aces++;
+        else if ('JQK'.includes(c.value)) score += 10;
+        else score += parseInt(c.value);
+    }
+    for (let i = 0; i < aces; i++) score += (score + 11 <= 21) ? 11 : 1;
+    return score;
+}
+
+// ===== PeerJS Networking =====
+function initPeer(customId) {
+    return new Promise((resolve, reject) => {
+        peer = customId ? new Peer(customId) : new Peer();
+        peer.on('open', id => { myPeerId = id; resolve(id); });
+        peer.on('error', err => {
+            if (err.type === 'unavailable-id') {
+                reject('room-exists');
+            } else {
+                console.error('PeerJS error:', err);
+                reject(err);
+            }
+        });
+    });
+}
+
+function createRoom() {
+    const name = $('host-name').value.trim() || '玩家1';
+    const count = parseInt($('player-count').value);
+    myName = name;
+    isHost = true;
+    gameState.maxPlayers = count;
+    roomCode = generateRoomCode();
+
+    initPeer('game21-' + roomCode).then(() => {
+        gameState.players = [{
+            id: myPeerId, name: myName, cards: [], score: 0,
+            bet: 0, chips: 100, status: 'waiting', isDealer: true
+        }];
+        showScreen('screen-lobby');
+        renderLobby();
+
+        peer.on('connection', conn => {
+            conn.on('open', () => {
+                conn.on('data', data => handleHostMessage(conn.peer, data));
+            });
+            conn.on('close', () => handlePlayerDisconnect(conn.peer));
+        });
+    }).catch(err => {
+        if (err === 'room-exists') {
+            roomCode = generateRoomCode();
+            createRoom();
+        } else {
+            showToast('连接服务器失败，请重试');
+        }
+    });
+}
+
+function joinRoom() {
+    const name = $('join-name').value.trim() || '玩家';
+    const code = $('join-code').value.trim().toUpperCase();
+    if (!code || code.length !== 4) return showToast('请输入4位房间码');
+    myName = name;
+    roomCode = code;
+
+    initPeer().then(() => {
+        hostConn = peer.connect('game21-' + code);
+        hostConn.on('open', () => {
+            hostConn.send({ type: 'JOIN', name: myName });
+            hostConn.on('data', data => handleClientMessage(data));
+        });
+        hostConn.on('error', () => showToast('无法连接到房间'));
+    }).catch(() => showToast('连接服务器失败'));
+}
+
+// ===== Host Message Handling =====
+function handleHostMessage(peerId, data) {
+    switch (data.type) {
+        case 'JOIN': {
+            if (gameState.players.length >= gameState.maxPlayers) {
+                const c = connections.get(peerId);
+                if (c) c.send({ type: 'ERROR', message: '房间已满' });
+                return;
+            }
+            if (gameState.phase !== 'lobby') {
+                const c = connections.get(peerId);
+                if (c) c.send({ type: 'ERROR', message: '游戏已开始' });
+                return;
+            }
+            const existing = peer.connections[peerId];
+            if (existing && existing.length > 0) {
+                connections.set(peerId, existing[existing.length - 1]);
+            }
+            gameState.players.push({
+                id: peerId, name: data.name, cards: [], score: 0,
+                bet: 0, chips: 100, status: 'waiting', isDealer: false
+            });
+            broadcastLobbyState();
+            break;
+        }
+        case 'BET': {
+            const p = gameState.players.find(p => p.id === peerId);
+            if (p && gameState.phase === 'betting') {
+                p.bet = Math.min(data.amount, p.chips);
+                p.status = 'bet-placed';
+                checkAllBetsPlaced();
+            }
+            break;
+        }
+        case 'HIT': {
+            const idx = gameState.players.findIndex(p => p.id === peerId);
+            if (idx === gameState.currentPlayerIndex && gameState.phase === 'playing') {
+                dealCardTo(idx);
+                if (gameState.players[idx].score > 21) {
+                    gameState.players[idx].status = 'busted';
+                    advanceTurn();
+                }
+                broadcastGameState();
+            }
+            break;
+        }
+        case 'STAND': {
+            const idx = gameState.players.findIndex(p => p.id === peerId);
+            if (idx === gameState.currentPlayerIndex && gameState.phase === 'playing') {
+                gameState.players[idx].status = 'stood';
+                advanceTurn();
+                broadcastGameState();
+            }
+            break;
+        }
+        case 'READY': {
+            const p = gameState.players.find(p => p.id === peerId);
+            if (p) p.status = 'ready';
+            if (gameState.players.every(p => p.status === 'ready')) startRound();
+            break;
+        }
+    }
+}
+
+function handlePlayerDisconnect(peerId) {
+    connections.delete(peerId);
+    const idx = gameState.players.findIndex(p => p.id === peerId);
+    if (idx > -1) {
+        const name = gameState.players[idx].name;
+        gameState.players.splice(idx, 1);
+        showToast(name + ' 离开了房间');
+        if (gameState.phase === 'lobby') broadcastLobbyState();
+        else broadcastGameState();
+    }
+}
+
+// ===== Client Message Handling =====
+let clientState = null;
+function handleClientMessage(data) {
+    switch (data.type) {
+        case 'LOBBY':
+            gameState.players = data.players;
+            gameState.maxPlayers = data.maxPlayers;
+            showScreen('screen-lobby');
+            renderLobby();
+            break;
+        case 'STATE':
+            clientState = data.state;
+            renderGame(clientState);
+            break;
+        case 'ERROR':
+            showToast(data.message);
+            break;
+        case 'ROOM_CLOSED':
+            showToast('房主已关闭房间');
+            setTimeout(() => location.reload(), 2000);
+            break;
+    }
+}
+
+// ===== Broadcasting =====
+function broadcastLobbyState() {
+    const msg = { type: 'LOBBY', players: gameState.players, maxPlayers: gameState.maxPlayers };
+    for (const [, conn] of connections) conn.send(msg);
+    renderLobby();
+}
+
+function broadcastGameState() {
+    for (const [peerId, conn] of connections) {
+        conn.send({ type: 'STATE', state: buildStateForPlayer(peerId) });
+    }
+    renderGame(buildStateForPlayer(myPeerId));
+}
+
+function buildStateForPlayer(peerId) {
+    const showAll = gameState.phase === 'results' || gameState.phase === 'dealer-turn';
+    return {
+        phase: gameState.phase,
+        currentPlayerIndex: gameState.currentPlayerIndex,
+        round: gameState.round,
+        message: gameState.message || '',
+        players: gameState.players.map(p => {
+            const isMe = p.id === peerId;
+            let cards = p.cards;
+            if (!showAll && !isMe) {
+                if (p.isDealer && p.cards.length >= 2) {
+                    cards = [p.cards[0], { faceDown: true }];
+                } else {
+                    cards = p.cards.map(() => ({ faceDown: true }));
+                }
+            }
+            return {
+                id: p.id, name: p.name, cards,
+                score: (isMe || showAll) ? p.score : '?',
+                bet: p.bet, chips: p.chips, status: p.status,
+                isDealer: p.isDealer, isMe,
+                result: p.result, chipChange: p.chipChange
+            };
+        })
+    };
+}
+// ===== Game Logic (Host Only) =====
+function startGame() {
+    if (!isHost || gameState.players.length < 2) return;
+    gameState.phase = 'betting';
+    gameState.round = 0;
+    startRound();
+}
+
+function startRound() {
+    gameState.round++;
+    gameState.deck = createDeck();
+    gameState.phase = 'betting';
+    gameState.message = '请下注';
+    gameState.players.forEach(p => {
+        p.cards = [];
+        p.score = 0;
+        p.status = p.isDealer ? 'dealer' : 'waiting';
+        p.bet = 0;
+    });
+    broadcastGameState();
+}
+
+function checkAllBetsPlaced() {
+    const nonDealers = gameState.players.filter(p => !p.isDealer);
+    if (nonDealers.every(p => p.status === 'bet-placed')) {
+        dealInitialCards();
+    }
+}
+
+function dealInitialCards() {
+    gameState.phase = 'playing';
+    for (let round = 0; round < 2; round++) {
+        for (const p of gameState.players) {
+            const card = gameState.deck.pop();
+            p.cards.push(card);
+        }
+    }
+    gameState.players.forEach(p => p.score = calcScore(p.cards));
+
+    const firstNonDealer = gameState.players.findIndex(p => !p.isDealer);
+    gameState.currentPlayerIndex = firstNonDealer;
+    gameState.players[firstNonDealer].status = 'playing';
+
+    for (const p of gameState.players) {
+        if (!p.isDealer && p.score === 21) {
+            p.status = 'blackjack';
+        }
+    }
+
+    const current = gameState.players[gameState.currentPlayerIndex];
+    if (current.status === 'blackjack') advanceTurn();
+
+    gameState.message = '游戏开始';
+    broadcastGameState();
+}
+
+function dealCardTo(idx) {
+    const card = gameState.deck.pop();
+    gameState.players[idx].cards.push(card);
+    gameState.players[idx].score = calcScore(gameState.players[idx].cards);
+}
+
+function advanceTurn() {
+    clearTimeout(turnTimer);
+    let next = gameState.currentPlayerIndex + 1;
+    while (next < gameState.players.length) {
+        const p = gameState.players[next];
+        if (!p.isDealer && p.status !== 'busted' && p.status !== 'blackjack' && p.status !== 'stood') {
+            gameState.currentPlayerIndex = next;
+            gameState.players[next].status = 'playing';
+            return;
+        }
+        next++;
+    }
+    dealerPlay();
+}
+
+async function dealerPlay() {
+    gameState.phase = 'dealer-turn';
+    const dealer = gameState.players.find(p => p.isDealer);
+    gameState.message = '庄家翻牌...';
+    broadcastGameState();
+
+    await delay(1000);
+
+    while (dealer.score < 17) {
+        dealCardTo(gameState.players.indexOf(dealer));
+        gameState.message = '庄家要牌... ' + dealer.score + '点';
+        broadcastGameState();
+        await delay(1000);
+    }
+
+    if (dealer.score > 21) dealer.status = 'busted';
+    else dealer.status = 'stood';
+
+    resolveRound();
+}
+
+function resolveRound() {
+    gameState.phase = 'results';
+    const dealer = gameState.players.find(p => p.isDealer);
+    const dealerScore = dealer.score;
+    const dealerBusted = dealer.status === 'busted';
+    let dealerChipChange = 0;
+
+    for (const p of gameState.players) {
+        if (p.isDealer) continue;
+
+        if (p.status === 'busted') {
+            p.result = 'lose';
+            p.chipChange = -p.bet;
+        } else if (p.status === 'blackjack') {
+            if (dealer.score === 21 && dealer.cards.length === 2) {
+                p.result = 'push';
+                p.chipChange = 0;
+            } else {
+                p.result = 'win';
+                p.chipChange = Math.floor(p.bet * 1.5);
+            }
+        } else if (dealerBusted) {
+            p.result = 'win';
+            p.chipChange = p.bet;
+        } else if (p.score > dealerScore) {
+            p.result = 'win';
+            p.chipChange = p.bet;
+        } else if (p.score === dealerScore) {
+            p.result = 'push';
+            p.chipChange = 0;
+        } else {
+            p.result = 'lose';
+            p.chipChange = -p.bet;
+        }
+        p.chips += p.chipChange;
+        if (p.chips < 0) p.chips = 0;
+        dealerChipChange -= p.chipChange;
+    }
+
+    dealer.chipChange = dealerChipChange;
+    dealer.chips += dealerChipChange;
+    dealer.result = 'dealer';
+
+    gameState.message = '本轮结束';
+    broadcastGameState();
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== Player Actions =====
+function selectBet(amount) {
+    selectedBet = amount;
+    document.querySelectorAll('.bet-chip').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.bet) === amount);
+    });
+}
+
+function confirmBet() {
+    if (isHost) {
+        const me = gameState.players.find(p => p.isDealer);
+        // Dealer doesn't bet, auto-proceed
+        // But we handle non-dealer host scenario... host is always dealer
+        return;
+    }
+    hostConn.send({ type: 'BET', amount: selectedBet });
+    $('bet-phase').style.display = 'none';
+    $('game-status').textContent = '等待其他玩家下注...';
+}
+
+function doHit() {
+    if (isHost) {
+        const idx = gameState.currentPlayerIndex;
+        if (idx < 0) return;
+        dealCardTo(idx);
+        if (gameState.players[idx].score > 21) {
+            gameState.players[idx].status = 'busted';
+            advanceTurn();
+        }
+        broadcastGameState();
+    } else {
+        hostConn.send({ type: 'HIT' });
+    }
+}
+
+function doStand() {
+    if (isHost) {
+        const idx = gameState.currentPlayerIndex;
+        if (idx < 0) return;
+        gameState.players[idx].status = 'stood';
+        advanceTurn();
+        broadcastGameState();
+    } else {
+        hostConn.send({ type: 'STAND' });
+    }
+}
+
+function readyNext() {
+    $('modal-results').classList.remove('active');
+    if (isHost) {
+        gameState.players.find(p => p.isDealer).status = 'ready';
+        if (gameState.players.every(p => p.status === 'ready')) startRound();
+        else {
+            gameState.message = '等待其他玩家准备...';
+            broadcastGameState();
+        }
+    } else {
+        hostConn.send({ type: 'READY' });
+    }
+}
+// ===== UI Rendering =====
+function renderLobby() {
+    $('lobby-room-code').textContent = roomCode;
+    $('lobby-player-count').textContent =
+        '玩家 ' + gameState.players.length + '/' + gameState.maxPlayers;
+    const list = $('lobby-player-list');
+    list.innerHTML = '';
+    gameState.players.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = '<span>' + p.name + (p.isDealer ? ' (庄家)' : '') + '</span>' +
+            (p.isDealer ? '<span class="badge">房主</span>' : '<span class="badge">已加入</span>');
+        list.appendChild(li);
+    });
+    const btn = $('btn-start');
+    if (isHost && gameState.players.length >= 2) {
+        btn.disabled = false;
+        btn.textContent = '开始游戏 (' + gameState.players.length + '人)';
+    } else if (isHost) {
+        btn.disabled = true;
+        btn.textContent = '等待玩家加入...';
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+function renderGame(state) {
+    if (!state) {
+        if (isHost) state = buildStateForPlayer(myPeerId);
+        else if (clientState) state = clientState;
+        else return;
+    }
+    showScreen('screen-table');
+    $('table-room-code').textContent = roomCode;
+
+    const me = state.players.find(p => p.isMe);
+    const dealer = state.players.find(p => p.isDealer);
+    const others = state.players.filter(p => !p.isMe && !p.isDealer);
+
+    // My chips
+    if (me) $('my-chips').textContent = me.chips;
+
+    // Dealer area — host sees own cards here
+    $('dealer-name').textContent = dealer.name + ' (庄家)';
+    renderCardRow($('dealer-cards'), dealer.cards, false);
+    const dealerScoreText = dealer.score !== '?' ? dealer.score + '点' : '';
+    $('dealer-score').textContent = dealerScoreText;
+    renderStatusTag($('dealer-status'), dealer.status);
+
+    // Others
+    const othersEl = $('others-area');
+    othersEl.innerHTML = '';
+    others.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'other-player' +
+            (state.currentPlayerIndex >= 0 && state.players[state.currentPlayerIndex]?.id === p.id ? ' current-turn' : '');
+        const statusText = getStatusText(p.status);
+        div.innerHTML =
+            '<div class="name">' + p.name + (statusText ? ' · ' + statusText : '') +
+            (p.score !== '?' ? ' · ' + p.score + '点' : '') + '</div>' +
+            '<div class="card-row small">' + p.cards.map(c => renderCardHTML(c, true)).join('') + '</div>';
+        othersEl.appendChild(div);
+    });
+
+    // My area (hidden for dealer/host — they see cards in dealer area)
+    const myAreaVisible = me && !me.isDealer;
+    document.querySelector('.my-area').style.display = myAreaVisible ? '' : 'none';
+    if (myAreaVisible) {
+        renderCardRow($('my-cards'), me.cards, false, true);
+        $('my-score').textContent = me.score !== '?' ? me.score + '点' : '';
+        renderStatusTag($('my-status'), me.status);
+    }
+
+    // Status message
+    const statusMsg = buildStatusMessage(state, me);
+    $('game-status').textContent = statusMsg;
+
+    // Controls visibility
+    const isMyTurn = me && state.currentPlayerIndex >= 0 &&
+        state.players[state.currentPlayerIndex]?.isMe &&
+        state.phase === 'playing' && me.status === 'playing';
+
+    $('action-bar').style.display = isMyTurn ? 'flex' : 'none';
+
+    // Bet phase
+    const showBet = state.phase === 'betting' && me && !me.isDealer && me.status !== 'bet-placed';
+    $('bet-phase').style.display = showBet ? 'block' : 'none';
+
+    // Results modal
+    if (state.phase === 'results') {
+        renderResults(state);
+    }
+}
+
+function renderCardRow(container, cards, small, big) {
+    container.innerHTML = '';
+    cards.forEach(c => {
+        container.innerHTML += renderCardHTML(c, small, big);
+    });
+}
+
+function renderCardHTML(card, small, big) {
+    if (card.faceDown) {
+        return '<div class="card facedown' + (small ? ' small' : '') + (big ? ' big' : '') + '"></div>';
+    }
+    const red = card.isRed ? ' red' : '';
+    const size = small ? ' small' : (big ? ' big' : '');
+    return '<div class="card' + red + size + ' dealing">' +
+        '<div class="suit">' + card.suit + '</div>' +
+        '<div class="value">' + card.value + '</div></div>';
+}
+
+function renderStatusTag(el, status) {
+    if (status === 'busted') {
+        el.style.display = 'inline'; el.className = 'status-tag busted'; el.textContent = '爆牌';
+    } else if (status === 'blackjack') {
+        el.style.display = 'inline'; el.className = 'status-tag blackjack'; el.textContent = 'Blackjack!';
+    } else if (status === 'stood') {
+        el.style.display = 'inline'; el.className = 'status-tag stood'; el.textContent = '停牌';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function getStatusText(status) {
+    const map = { busted: '爆牌', blackjack: 'BJ!', stood: '停牌', playing: '思考中...', 'bet-placed': '已下注' };
+    return map[status] || '';
+}
+
+function buildStatusMessage(state, me) {
+    if (state.phase === 'betting') {
+        if (me?.isDealer) return '等待闲家下注...';
+        if (me?.status === 'bet-placed') return '等待其他玩家下注...';
+        return '请选择下注额';
+    }
+    if (state.phase === 'playing') {
+        const current = state.players[state.currentPlayerIndex];
+        if (current?.isMe) return '轮到你了！要牌还是停牌？';
+        return '等待 ' + (current?.name || '') + ' 操作...';
+    }
+    if (state.phase === 'dealer-turn') return state.message || '庄家操作中...';
+    if (state.phase === 'results') return '本轮结束';
+    return '';
+}
+
+function renderResults(state) {
+    const list = $('results-list');
+    list.innerHTML = '';
+    const dealer = state.players.find(p => p.isDealer);
+
+    // Show dealer first
+    list.innerHTML += renderResultRow(dealer);
+    state.players.filter(p => !p.isDealer).forEach(p => {
+        list.innerHTML += renderResultRow(p);
+    });
+
+    $('modal-results').classList.add('active');
+}
+
+function renderResultRow(p) {
+    const resultText = p.isDealer ? '庄家' :
+        (p.result === 'win' ? '赢' : p.result === 'lose' ? '输' : '平');
+    const chipClass = !p.chipChange ? 'push' : p.chipChange > 0 ? 'win' : 'lose';
+    const chipText = p.chipChange > 0 ? '+' + p.chipChange :
+        p.chipChange === 0 ? '±0' : '' + p.chipChange;
+    return '<div class="result-row">' +
+        '<span class="name">' + p.name + '</span>' +
+        '<span class="result-score">' + (typeof p.score === 'number' ? p.score + '点' : '') + '</span>' +
+        '<span class="result-chips ' + chipClass + '">' + resultText + ' ' + chipText + '</span></div>';
+}
+
+// ===== Room Sharing =====
+function copyRoomLink() {
+    const url = location.protocol === 'file:'
+        ? '房间码: ' + roomCode
+        : location.origin + location.pathname + '?room=' + roomCode;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => showToast('已复制')).catch(() => {
+            prompt('复制房间码:', roomCode);
+        });
+    } else {
+        prompt('复制房间码:', roomCode);
+    }
+}
+
+function shareRoom() {
+    const url = location.origin + location.pathname + '?room=' + roomCode;
+    navigator.share({ title: '宿舍21点', text: '来玩21点！房间码: ' + roomCode, url }).catch(() => {});
+}
+
+// ===== Init =====
+(function init() {
+    const params = new URLSearchParams(location.search);
+    const room = params.get('room');
+    if (room) {
+        $('join-code').value = room.toUpperCase();
+        showToast('已自动填入房间码');
+    }
+    if (navigator.share) $('btn-share').style.display = '';
+    selectBet(10);
+})();
+</script>
+</body>
